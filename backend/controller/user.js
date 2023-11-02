@@ -2,10 +2,11 @@ import User from "../models/user.js";
 import asyncHandler from "express-async-handler";
 import bcrypt from "bcrypt";
 import { generateToken } from "../config/jwt.js";
+import { generateRefreshToken } from "../config/refreshToken.js";
 
 // Register the user
 export const createUser = asyncHandler(async (req, res) => {
-  const { email, firstName, lastName, password } = req.body;
+  const { email, firstName, lastName, password, role } = req.body;
   try {
     const findUser = await User.findOne({ email: email });
     if (!findUser) {
@@ -16,6 +17,7 @@ export const createUser = asyncHandler(async (req, res) => {
         lastName,
         email: req.body.email,
         password: hashedPassword,
+        role,
       });
 
       res.status(201).json(newUser);
@@ -23,7 +25,7 @@ export const createUser = asyncHandler(async (req, res) => {
       res.status(409).json({ message: "User already exists", success: false });
     }
   } catch (error) {
-    res.status(500).json({ msg: "Something went wrong", success: false });
+    res.status(500).json({ message: "Something went wrong", success: false });
   }
 });
 
@@ -43,6 +45,18 @@ export const loginUser = asyncHandler(async (req, res) => {
         .status(403)
         .json({ message: "Wrong credentials", success: false });
     }
+    const refreshToken = await generateRefreshToken(userExists?._id);
+    const updateUser = await User.findByIdAndUpdate(
+      userExists?._id,
+      {
+        refreshToken: refreshToken,
+      },
+      { new: true }
+    );
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      maxAge: 60 * 60 * 72 * 1000,
+    });
     return res.status(200).json({
       _id: userExists._id,
       firstName: userExists.firstName,
@@ -51,7 +65,7 @@ export const loginUser = asyncHandler(async (req, res) => {
       token: generateToken(userExists._id),
     });
   } catch (error) {
-    res.status(500).json({ msg: "Something went wrong", success: false });
+    res.status(500).json({ message: "Something went wrong", success: false });
   }
 });
 
@@ -61,7 +75,7 @@ export const fetchAllUsers = asyncHandler(async (req, res) => {
     const allUsers = await User.find({});
     res.status(200).json(allUsers);
   } catch (error) {
-    res.status(500).json({ msg: "Something went wrong" });
+    res.status(500).json({ message: "Something went wrong" });
   }
 });
 
@@ -70,10 +84,13 @@ export const fetchSingleUser = asyncHandler(async (req, res) => {
   const { id } = req.params;
   try {
     const singleUser = await User.findOne({ _id: id });
-    singleUser.password = undefined;
-    res.status(200).json(singleUser);
+    if (singleUser) {
+      singleUser.password = undefined;
+      return res.status(200).json(singleUser);
+    }
+    return res.status(404).json({ message: `User not found`, success: false });
   } catch (error) {
-    res.status(500).json({ msg: "Something went wrong" });
+    res.status(500).json({ message: error.message });
   }
 });
 
@@ -88,8 +105,10 @@ export const deleteSingleUser = asyncHandler(async (req, res) => {
         .json({ message: "User deleted successfully", success: true });
 
     if (userExists === null)
-      return res.status(400).json({ msg: "No user to delete", success: false });
+      return res
+        .status(400)
+        .json({ message: "No user to delete", success: false });
   } catch (error) {
-    res.status(500).json({ msg: "Something went wrong" });
+    res.status(500).json({ message: "Something went wrong" });
   }
 });
