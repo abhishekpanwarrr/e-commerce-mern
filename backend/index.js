@@ -4,6 +4,9 @@ import { dbConnection } from "./config/db.js";
 import authRouter from "./routes/user.js";
 import bodyParser from "body-parser";
 import { errorHandler, notFound } from "./middlewares/errorHandler.js";
+import cookieParser from "cookie-parser";
+
+
 
 dotenv.config();
 const PORT = process.env.PORT || 8000;
@@ -15,6 +18,7 @@ dbConnection();
 //using middleware
 app.use(express.json());
 app.use(bodyParser.urlencoded({ extended: false }));
+app.use(cookieParser())
 
 // GET on "/"
 app.get("/", (req, res) => {
