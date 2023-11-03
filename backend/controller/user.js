@@ -3,6 +3,7 @@ import asyncHandler from "express-async-handler";
 import bcrypt from "bcrypt";
 import { generateToken } from "../config/jwt.js";
 import { generateRefreshToken } from "../config/refreshToken.js";
+import jwt from "jsonwebtoken";
 
 // Register the user
 export const createUser = asyncHandler(async (req, res) => {
@@ -111,4 +112,52 @@ export const deleteSingleUser = asyncHandler(async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: "Something went wrong" });
   }
+});
+
+// Refresh token
+export const refreshToken = asyncHandler(async (req, res) => {
+  const cookie = req.cookies;
+  if (!cookie.refreshToken) {
+    return res
+      .status(401)
+      .json({ message: "Refresh token is required", success: false });
+  }
+  const user = await User.findOne({ refreshToken: cookie?.refreshToken });
+  if (!user) {
+    return res.status(400).json({ message: "No token found", success: false });
+  }
+  const response = await jwt.verify(
+    cookie.refreshToken,
+    process.env.SECRET_KEY
+  );
+  console.log("response", response);
+  if (response.id !== user.id) {
+    return res
+      .status(402)
+      .json({ message: "something went wrong with token", success: false });
+  }
+  const accessToken = generateToken(user?.id);
+  return res.status(200).json({ accessToken });
+});
+
+// Logout the user
+export const logout = asyncHandler(async (req, res) => {
+  const cookie = req.cookies;
+  if (!cookie.refreshToken) {
+    return res
+      .status(401)
+      .json({ message: "Refresh token is required", success: false });
+  }
+  const user = await User.findOne({ refreshToken: cookie?.refreshToken });
+  if (!user) {
+    res.clearCookie("refreshToken", { httpOnly: true, secure: true });
+    return res.status(204); //Forbidden
+  }
+  await User.findOneAndUpdate(
+    { refreshToken: cookie?.refreshToken },
+    { $set: { refreshToken: "" } },
+    { new: true, useFindAndModify: false }
+  );
+  res.clearCookie("refreshToken", { httpOnly: true, secure: true });
+  return res.status(204); //Forbidden
 });
