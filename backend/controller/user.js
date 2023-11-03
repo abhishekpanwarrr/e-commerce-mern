@@ -4,6 +4,8 @@ import bcrypt from "bcrypt";
 import { generateToken } from "../config/jwt.js";
 import { generateRefreshToken } from "../config/refreshToken.js";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
+import { sendEmail } from "./email.js";
 
 // Register the user
 export const createUser = asyncHandler(async (req, res) => {
@@ -160,4 +162,48 @@ export const logout = asyncHandler(async (req, res) => {
   );
   res.clearCookie("refreshToken", { httpOnly: true, secure: true });
   return res.status(204); //Forbidden
+});
+
+// Update password
+export const updatePassword = asyncHandler(async (req, res) => {
+  const { _id } = req.user;
+  const { password } = req.body;
+
+  const user = await User.findById(_id);
+  const salt = await bcrypt.genSaltSync(10);
+  const hashedPassword = await bcrypt.hash(password, salt);
+  if (password) {
+    user.password = hashedPassword;
+    const updatePassword = await user.save();
+    res.json(updatePassword);
+  } else {
+    res.json(user);
+  }
+});
+
+// Reset password
+export const resetPassword = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+  const user = await User.findOne({ email });
+  if (!user) {
+    return res.status(404).json({ message: "User not found", success: false });
+  }
+  const resettoken = crypto.randomBytes(32).toString("hex");
+  const passwordResetToken = crypto
+    .createHash("sha256")
+    .update(resettoken)
+    .digest("hex");
+  const passwordResetExpires = Date.now() + 30 * 60 * 1000;
+  user.passwordResetToken = passwordResetToken;
+  user.passwordResetExpires = passwordResetExpires;
+  await user.save();
+  const resetUrl = `Hi Please follow the instructions. <a href="http://localhost:9000/api/user/forgot/${resettoken}">Click to reset password</a>`;
+  const data = {
+    to: email,
+    text: "Hey there",
+    subject: "Forgot password reset email link",
+    htm: resetUrl,
+  };
+  sendEmail(data,req,res);
+  res.json(resettoken);
 });
