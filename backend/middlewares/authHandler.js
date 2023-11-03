@@ -12,6 +12,7 @@ export const authMiddleware = asyncHandler(async (req, res, next) => {
         const singleUser = await User.findById(decoded?.id);
         if (singleUser) {
           req.user = singleUser;
+          console.log("next going");
           next();
         }
       }
@@ -25,9 +26,11 @@ export const authMiddleware = asyncHandler(async (req, res, next) => {
 
 export const isAdmin = asyncHandler(async (req, res, next) => {
   const { email } = req.user;
+  console.log("email: " + email);
   const adminUser = await User.findOneAndDelete({ email });
-  if (adminUser.isAdmin !== "admin") {
-    throw new Error("Not a admin");
+  if (adminUser.role !== "admin") {
+    console.log("not admin");
+    return res.status(300).json({message:"you are not admin"})
   } else {
     next();
   }
