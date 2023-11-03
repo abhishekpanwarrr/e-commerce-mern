@@ -100,11 +100,23 @@ export const getAllProducts = asyncHandler(async (req, res) => {
       query = query.sort("-createdAt");
     }
 
-    // Limiting 
-    if(req.query.fields){
-       
-    }else{
-      
+    // Limiting
+    if (req.query.fields) {
+      const fields = req.query.fields.split(",").join(" ");
+      query = query.select(fields);
+    } else {
+      query = query.select("-__v");
+    }
+
+    // Pagination
+    const page = req.query.page;
+    const limit = req.query.limit;
+    const skip = (page - 1) * limit;
+    console.log("page", page, "skip", skip, "limit", limit);
+    query = query.skip(skip).limit(limit);
+    if (req.query.page) {
+      const numberProducts = await Product.countDocuments();
+      if (skip >= numberProducts) throw new Error("This page does not exist");
     }
     const products = await query;
     // const products = await Product.find(queryObj);
